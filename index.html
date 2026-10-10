@@ -1,0 +1,166 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>ZENITH AI STUDIO | V2 VIDEO</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{background:#050505;color:#fff;font-family:monospace;padding:10px}
+.top{display:flex;justify-content:space-between;font-size:10px;opacity:.6;margin-bottom:8px}
+input{width:100%;background:#111;border:1px solid #333;color:#fff;padding:12px;margin:5px 0;border-radius:6px}
+.btn{width:100%;padding:14px;border:none;border-radius:8px;font-weight:bold;cursor:pointer;margin:5px 0}
+.btn-gold{background:#facc15;color:#000}
+.btn-white{background:#fff;color:#000}
+.btn-outline{background:transparent;border:1px solid #444;color:#fff}
+.tabs{display:flex;gap:6px;margin:10px 0}
+.tab{flex:1;padding:10px;border:1px solid #333;text-align:center;border-radius:6px;cursor:pointer;font-size:12px}
+.tab.active{background:#fff;color:#000;border-color:#fff}
+#result{position:relative;width:100%;aspect-ratio:1;background:#111;border-radius:12px;overflow:hidden;margin-top:10px}
+#result img{width:100%;height:100%;object-fit:cover}
+#result video{width:100%;height:100%;object-fit:cover;display:none}
+.brand-bar{position:absolute;bottom:0;left:0;width:100%;height:38px;background:#000;display:flex;justify-content:space-between;align-items:center;padding:0 10px;font-size:9px;font-weight:bold;z-index:10}
+.brand-bar span:last-child{opacity:.7}
+.video-overlay{position:absolute;top:0;left:0;width:100%;height:100%;display:none;align-items:center;justify-content:center;background:rgba(0,0,0,.3);z-index:5}
+.video-overlay.active{display:flex}
+.loading{color:#facc15;text-align:center;padding:20px}
+</style>
+</head>
+<body>
+<div class="top"><span>ZENITH AI STUDIO | V2 - VIDEO PRODUCTION</span><span>AI VIDEO PRODUCTION</span></div>
+<input id="prompt" value="White luxury sneaker Ah Rell Luxe Edition in desert at sunset, ultra sharp 4K">
+<input id="voice" value="The night is yours. Introducing Ah Rell Luxe Edition. Crafted for those who own the darkness.">
+<div class="tabs">
+<div class="tab active" id="tab-img" onclick="switchTab('img')">📸 IMAGE</div>
+<div class="tab" id="tab-video" onclick="switchTab('video')">🎬 VIDEO</div>
+</div>
+<button class="btn btn-gold" onclick="createImage()">Create with ZENITH AI — Direct on Website</button>
+<button class="btn btn-white" id="videoBtn" onclick="createVideo()" style="display:none">🎬 Generate AI Video (5s) — Ah Rell Commercial</button>
+<div id="result">
+<img id="outImg" style="display:none">
+<video id="outVideo" loop muted playsinline controls></video>
+<div class="brand-bar"><span>ZENITH AI STUDIO</span><span>CRYSTAL CLEAR 4K • AH RELL LUXE</span></div>
+<div class="video-overlay" id="overlay"><div class="loading">Generating...</div></div>
+</div>
+<div id="actions" style="display:none;margin-top:10px">
+<button class="btn btn-white" onclick="downloadFile()">⬇️ Download HD</button>
+<button class="btn btn-outline" onclick="orderWhatsApp()">💬 Order on WhatsApp</button>
+</div>
+<canvas id="canvas" style="display:none"></canvas>
+
+<script>
+let currentImageUrl = "";
+let currentMode = "img";
+let mediaRecorder, recordedChunks = [];
+
+function switchTab(mode){
+ currentMode = mode;
+ document.getElementById('tab-img').classList.toggle('active', mode==='img');
+ document.getElementById('tab-video').classList.toggle('active', mode==='video');
+ document.getElementById('videoBtn').style.display = mode==='video' ? 'block' : 'none';
+}
+
+async function createImage(){
+ const prompt = document.getElementById('prompt').value;
+ const overlay = document.getElementById('overlay');
+ overlay.classList.add('active');
+ overlay.innerHTML = '<div class=loading>Creating Crystal Clear 8K...</div>';
+ try{
+  const res = await fetch('/api/generate', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({prompt})});
+  const data = await res.json();
+  currentImageUrl = data.imageUrl;
+  const img = document.getElementById('outImg');
+  img.src = currentImageUrl + '&t=' + Date.now();
+  img.style.display='block';
+  document.getElementById('outVideo').style.display='none';
+  img.onload = () => {
+   overlay.classList.remove('active');
+   document.getElementById('actions').style.display='block';
+   speak();
+  };
+ } catch(e){
+  overlay.innerHTML = '<div class=loading>Error: '+e+'</div>';
+ }
+}
+
+async function createVideo(){
+ if(!currentImageUrl){
+   alert('First create an IMAGE, then generate VIDEO from it!');
+   switchTab('img');
+   createImage();
+   return;
+ }
+ const overlay = document.getElementById('overlay');
+ overlay.classList.add('active');
+ overlay.innerHTML = '<div class=loading>🎬 Producing AI Video... 5s Commercial<br>Ah Rell Luxe Edition</div>';
+ 
+ // Animate image into video using canvas recording
+ const img = document.getElementById('outImg');
+ const canvas = document.getElementById('canvas');
+ const video = document.getElementById('outVideo');
+ canvas.width = 1024; canvas.height = 1024;
+ const ctx = canvas.getContext('2d');
+ 
+ let progress = 0;
+ const stream = canvas.captureStream(30);
+ recordedChunks = [];
+ mediaRecorder = new MediaRecorder(stream, {mimeType: 'video/webm'});
+ mediaRecorder.ondataavailable = e => { if(e.data.size>0) recordedChunks.push(e.data); };
+ mediaRecorder.onstop = () => {
+   const blob = new Blob(recordedChunks, {type: 'video/webm'});
+   const url = URL.createObjectURL(blob);
+   video.src = url;
+   video.style.display='block';
+   img.style.display='none';
+   overlay.classList.remove('active');
+   document.getElementById('actions').style.display='block';
+   video.play();
+   speak();
+ };
+ 
+ mediaRecorder.start();
+ let anim = setInterval(()=>{
+   progress+=0.02;
+   if(progress>1){ clearInterval(anim); mediaRecorder.stop(); return; }
+   // Ken Burns zoom effect
+   const scale = 1 + progress*0.3;
+   const x = (canvas.width - canvas.width*scale)/2;
+   const y = (canvas.height - canvas.height*scale)/2;
+   ctx.fillStyle='#000'; ctx.fillRect(0,0,canvas.width,canvas.height);
+   ctx.drawImage(img, x, y, canvas.width*scale, canvas.height*scale);
+   // Add brand bar on video
+   ctx.fillStyle='#000'; ctx.fillRect(0, canvas.height-38, canvas.width, 38);
+   ctx.fillStyle='#fff'; ctx.font='bold 12px monospace';
+   ctx.fillText('ZENITH AI STUDIO', 10, canvas.height-14);
+   ctx.fillStyle='rgba(255,255,255,0.7)'; ctx.font='9px monospace';
+   ctx.fillText('CRYSTAL CLEAR 4K • AH RELL LUXE', canvas.width-210, canvas.height-14);
+ }, 33);
+}
+
+function downloadFile(){
+ const a = document.createElement('a');
+ if(currentMode==='video' && document.getElementById('outVideo').src){
+   a.href = document.getElementById('outVideo').src;
+   a.download = 'Ah-Rell-Luxe-Video.webm';
+ } else {
+   a.href = currentImageUrl;
+   a.download = 'Ah-Rell-Luxe-8K.jpg';
+   a.target='_blank';
+ }
+ a.click();
+}
+
+function orderWhatsApp(){
+ const msg = encodeURIComponent('Hello ZENITH AI STUDIO, I want to order Ah Rell Luxe Edition:\n' + currentImageUrl);
+ window.open('https://wa.me/2340000000000?text='+msg, '_blank');
+}
+
+function speak(){
+ const text = document.getElementById('voice').value;
+ if('speechSynthesis' in window){
+   const u = new SpeechSynthesisUtterance(text);
+   u.rate=0.9; speechSynthesis.speak(u);
+ }
+}
+</script>
+</body>
+</html>

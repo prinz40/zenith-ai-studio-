@@ -1,0 +1,8 @@
+moviepy==1.0.3
+gtts
+Pillow
+numpy
+google-genai
+requests
+elevenlabs==2.71.0
+python-dotenv==1.2.4
