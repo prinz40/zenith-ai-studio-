@@ -1,1 +1,8 @@
-.vercel
+.env
+.env.local
+*.mp4
+*.mp3
+*.wav
+*.jpg
+*.png
+__pycache__/
