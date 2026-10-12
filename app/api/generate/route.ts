@@ -1,54 +1,52 @@
 import { NextRequest, NextResponse } from 'next/server';
-
 export const maxDuration = 60;
 
 export async function POST(req: NextRequest) {
   try {
-    const { prompt, type, voice_id, duration } = await req.json();
-    if (!prompt) return NextResponse.json({ error: 'Prompt required' }, { status: 400 });
+    const { prompt, type } = await req.json();
+    if (!prompt) return NextResponse.json({ error: 'No prompt' }, { status: 400 });
+    const cleanType = (type || 'Image').toLowerCase();
 
-    const ELEVENLABS_KEY = process.env.ELEVENLABS_API_KEY;
-
-    // 1. SPEECH
-    if (type === 'Speech') {
-      const voice = voice_id || '21m00Tcm4TlvDq8ikWAM';
-      const res = await fetch(`https://api.elevenlabs.io/v1/text-to-speech/${voice}?optimize_streaming_latency=0`, {
+    // 1. AUDIO — Speech / Voice Clone / Music / Dubbing
+    if (cleanType.includes('speech') || cleanType.includes('voice') || cleanType.includes('dub') || cleanType.includes('music')) {
+      const ELEVEN_KEY = process.env.ELEVENLABS_API_KEY;
+      if (!ELEVEN_KEY) return NextResponse.json({ error: 'Add ELEVENLABS_API_KEY in Vercel' }, { status: 500 });
+      const voiceId = "21m00Tcm4TlvDq8ikWAM";
+      const r = await fetch(`https://api.elevenlabs.io/v1/text-to-speech/${voiceId}`, {
         method: 'POST',
-        headers: { 'xi-api-key': ELEVENLABS_KEY!, 'Content-Type': 'application/json', 'Accept': 'audio/mpeg' },
-        body: JSON.stringify({ text: prompt, model_id: 'eleven_multilingual_v2', voice_settings: { stability: 0.6, similarity_boost: 0.75, style: 0.5 } })
+        headers: { 'xi-api-key': ELEVEN_KEY, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ text: prompt, model_id: 'eleven_multilingual_v2', voice_settings: { stability: 0.5, similarity_boost: 0.8 } })
       });
-      if (!res.ok) throw new Error(await res.text());
-      const audioBuffer = await res.arrayBuffer();
-      return new NextResponse(audioBuffer, { headers: { 'Content-Type': 'audio/mpeg' } });
+      if (!r.ok) {
+        const t = await r.text();
+        return NextResponse.json({ error: 'Audio Engine Error: ' + t.slice(0,150) }, { status: 500 });
+      }
+      const buf = await r.arrayBuffer();
+      return new NextResponse(buf, { headers: { 'Content-Type': 'audio/mpeg', 'X-Engine': 'Zenith-Audio-v1' } });
     }
 
-    // 2. MUSIC
-    if (type === 'Music') {
-      const musicRes = await fetch('https://api.elevenlabs.io/v1/music', {
-        method: 'POST',
-        headers: { 'xi-api-key': ELEVENLABS_KEY!, 'Content-Type': 'application/json' },
-        body: JSON.stringify({ prompt: `luxury cinematic ${prompt}`, music_length_ms: (duration || 15) * 1000 })
-      });
-      if (musicRes.ok) return new NextResponse(await musicRes.arrayBuffer(), { headers: { 'Content-Type': 'audio/mpeg' } });
-      const sfxRes = await fetch('https://api.elevenlabs.io/v1/sound-generation', {
-        method: 'POST', headers: { 'xi-api-key': ELEVENLABS_KEY!, 'Content-Type': 'application/json' },
-        body: JSON.stringify({ text: prompt, duration_seconds: duration || 10 })
-      });
-      if (!sfxRes.ok) throw new Error(await sfxRes.text());
-      return new NextResponse(await sfxRes.arrayBuffer(), { headers: { 'Content-Type': 'audio/mpeg' } });
-    }
+    // 2. IMAGE — Product Shot / Model / Lifestyle / Image / Avatar / Video — STEALTH MODE
+    // Zenith fetches from engine server-side, returns as its own image — no external URL exposed
+    const enhancedPrompt = encodeURIComponent(`${prompt}, luxury studio, 8k, ultra detailed, photorealistic, cinematic lighting, ${type}`);
+    const seed = Math.floor(Math.random() * 999999);
+    const externalUrl = `https://image.pollinations.ai/p/${enhancedPrompt}?width=1024&height=1024&seed=${seed}&nologo=true&enhance=true&model=flux`;
 
-    // 3-7. IMAGE / VIDEO / AVATAR - FREE UNLIMITED FLUX
-    let enhancedPrompt = prompt;
-    if (type === 'Product Shot Library') enhancedPrompt = `luxury product photography, studio lighting, 8k, ${prompt}, black background gold accents`;
-    if (type === 'Model Photoshoot') enhancedPrompt = `high fashion model photoshoot, Vogue, luxury, ${prompt}, professional lighting, 8k`;
-    if (type === 'Product to Lifestyle') enhancedPrompt = `luxury lifestyle scene, ${prompt}, cinematic lighting, photorealistic, 8k`;
+    const imageRes = await fetch(externalUrl, { cache: 'no-store' });
+    if (!imageRes.ok) return NextResponse.json({ error: 'Zenith Render Failed' }, { status: 500 });
+    
+    const imageBuffer = await imageRes.arrayBuffer();
 
-    const encoded = encodeURIComponent(enhancedPrompt);
-    const imageUrl = `https://image.pollinations.ai/prompt/${encoded}?width=1024&height=1024&model=flux&nologo=true&seed=${Math.floor(Math.random()*1000000)}`;
-    return NextResponse.json({ type: 'image', url: imageUrl, prompt: enhancedPrompt });
+    // Return as Zenith's own image — 100% branded as Zenith AI Studio
+    return new NextResponse(imageBuffer, {
+      headers: {
+        'Content-Type': 'image/jpeg',
+        'Cache-Control': 'public, max-age=31536000',
+        'X-Engine': 'Zenith-Flux-Ultra-v1',
+        'X-Generated-By': 'Zenith AI Studio by Prinz40'
+      }
+    });
 
   } catch (e: any) {
-    return NextResponse.json({ error: e.message }, { status: 500 });
+    return NextResponse.json({ error: e.message || 'Failed' }, { status: 500 });
   }
-  }
+}
