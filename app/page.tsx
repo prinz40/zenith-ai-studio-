@@ -16,7 +16,6 @@ export default function Page() {
     const finalPrompt = customPrompt || prompt
     const finalType = customType || activeTab
     if (!finalPrompt) return alert('Enter idea first my Prinz!')
-
     setLoading(true)
     setResultUrl('')
     setAudioUrl('')
@@ -26,40 +25,67 @@ export default function Page() {
       const res = await fetch('/api/generate', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          prompt: finalPrompt,
-          type: finalType,
-          duration: 15
-        })
+        body: JSON.stringify({ prompt: finalPrompt, type: finalType, duration: 15 })
       })
 
-      const contentType = res.headers.get('content-type')
+      if (!res.ok) {
+        const err = await res.json().catch(()=>({error:'Failed'}))
+        throw new Error(err.error || 'Failed')
+      }
 
-      if (contentType?.includes('audio')) {
+      const contentType = res.headers.get('content-type') || ''
+
+      // STEALTH MODE: Both image and audio come as blob from Zenith API (no external URL)
+      if (contentType.includes('audio') || contentType.includes('image')) {
         const blob = await res.blob()
         const url = URL.createObjectURL(blob)
-        setAudioUrl(url)
-        setRecent(r => [{ type: finalType, prompt: finalPrompt, url, time: 'Just now', status: 'Ready' },...r].slice(0,6))
+        if (contentType.includes('audio')) {
+          setAudioUrl(url)
+          // Auto play audio
+          setTimeout(()=>{ try{ new Audio(url).play() } catch{} }, 300)
+        } else {
+          setResultUrl(url)
+        }
+        setRecent(r => [{ type: finalType, prompt: finalPrompt, url, isAudio: contentType.includes('audio'), time: 'Just now', status: 'Ready' },...r].slice(0,6))
       } else {
+        // Fallback JSON url (old mode)
         const data = await res.json()
         if (data.url) {
           setResultUrl(data.url)
-          setRecent(r => [{ type: finalType, prompt: finalPrompt, url: data.url, time: 'Just now', status: 'Ready' },...r].slice(0,6))
-        } else {
-          alert(data.error || 'Failed')
+          setRecent(r => [{ type: finalType, prompt: finalPrompt, url: data.url, isAudio: false, time: 'Just now', status: 'Ready' },...r].slice(0,6))
         }
       }
     } catch (e: any) {
-      alert('Zenith Brain Error: ' + e.message)
+      alert('Zenith: ' + e.message)
     }
     setLoading(false)
+  }
+
+  const clearAll = () => {
+    setPrompt('')
+    setResultUrl('')
+    setAudioUrl('')
+    setResultType('')
+    window.scrollTo({top:0, behavior:'smooth'})
+  }
+
+  const restoreRecent = (r: any) => {
+    setResultType(r.type)
+    setPrompt(r.prompt)
+    if (r.isAudio) {
+      setAudioUrl(r.url)
+      setResultUrl('')
+    } else {
+      setResultUrl(r.url)
+      setAudioUrl('')
+    }
+    window.scrollTo({top:400, behavior:'smooth'})
   }
 
   return (
     <main className="min-h-screen bg-[#08070A] text-white px-4 py-4">
       <style>{`@import url('https://fonts.googleapis.com/css2?family=Outfit:wght@300;600;900&display=swap'); *{font-family:Outfit}`}</style>
 
-      {/* HEADER */}
       <div className="max-w-7xl mx-auto border border-[#F5D76E]/20 rounded-2xl bg-black/40 backdrop-blur px-6 py-4 flex justify-between items-center">
         <div className="flex gap-3 items-center">
           <div className="w-10 h-10 border border-[#F5D76E] rotate-45 grid place-items-center"><div className="-rotate-45 text-[#F5D76E]">◊</div></div>
@@ -73,20 +99,18 @@ export default function Page() {
         </div>
       </div>
 
-      {/* TABS */}
       <div className="max-w-7xl mx-auto mt-4 border border-white/10 rounded-2xl bg-white/[0.03] p-3 flex gap-2 overflow-x-auto">
         {tabs.map(t => (
-          <button key={t} onClick={()=>setActiveTab(t)} className={`px-5 py-2.5 rounded-full text-sm whitespace-nowrap flex gap-2 items-center transition ${activeTab===t? 'bg-[#F5D76E] text-black font-bold shadow-[0_0_20px_#F5D76E]' : 'bg-black border border-[#F5D76E]/30 text-white/70'}`}>
+          <button key={t} onClick={()=>setActiveTab(t)} className={`px-5 py-2.5 rounded-full text-sm whitespace-nowrap flex gap-2 items-center transition ${activeTab===t? 'bg-[#F5D76E] text-black font-bold shadow-[0_0_20px_#F5D76E]' : 'bg-black border border-[#F5D76E]/30 text-white/70 hover:border-[#F5D76E]/60'}`}>
             {t==='Speech'?'🎙':t==='Music'?'🎵':t==='Voice Clone'?'〰':t==='Image'?'🖼':t==='Video'?'🎥':t==='Dubbing'?'⚙':t==='Avatar'?'👤':'📦'} {t}
           </button>
         ))}
       </div>
 
-      {/* TEMPLATES */}
       <div className="max-w-7xl mx-auto mt-6">
         <div className="flex justify-between items-end mb-4">
           <div><h2 className="text-2xl font-light text-[#F5D76E]">Templates & Libraries</h2><p className="text-sm opacity-50">Create professional AI-generated media in seconds — Click to generate</p></div>
-          <button className="bg-[#F5D76E] text-black px-4 py-2 rounded-lg text-sm font-bold">+ New Project</button>
+          <button onClick={clearAll} className="bg-[#F5D76E] text-black px-4 py-2 rounded-lg text-sm font-bold hover:scale-105 transition">+ New Project</button>
         </div>
 
         <div className="grid md:grid-cols-3 gap-5">
@@ -98,7 +122,7 @@ export default function Page() {
             <div key={c.title} onClick={()=>{ setPrompt(c.prompt); setActiveTab(c.title); handleGenerate(c.prompt, c.title) }} className="rounded-2xl border border-[#F5D76E]/20 bg-black overflow-hidden group hover:border-[#F5D76E]/50 transition cursor-pointer">
               <div className="relative p-3">
                 <div className="absolute top-6 right-6 z-10 bg-[#F5D76E]/90 text-black text-[10px] px-2 py-1 rounded-full font-bold">{c.badge}</div>
-                <img src={c.img} className="w-full h-48 object-cover rounded-xl group-hover:scale-105 transition" />
+                <img src={c.img} className="w-full h-48 object-cover rounded-xl group-hover:scale-105 transition duration-500" />
                 <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 grid place-items-center transition"><span className="bg-[#F5D76E] text-black px-4 py-2 rounded-full text-xs font-bold">CLICK TO GENERATE</span></div>
               </div>
               <div className="p-4 text-center">
@@ -110,70 +134,65 @@ export default function Page() {
           ))}
         </div>
 
-        {/* GENERATE BOX - WIRED TO REAL BRAIN */}
         <div className="mt-8 border border-[#F5D76E]/20 rounded-2xl p-5 bg-gradient-to-b from-[#F5D76E]/10 to-transparent">
-          <h3 className="text-[#F5D76E] mb-3">⚡ Generate Luxury Reel — Connected to Real Brain ({activeTab})</h3>
-          <div className="flex gap-2">
+          <h3 className="text-[#F5D76E] mb-3">⚡ Generate Luxury Reel — Connected to Zenith Stealth Brain ({activeTab})</h3>
+          <div className="flex gap-2 flex-col md:flex-row">
             <input value={prompt} onChange={e=>setPrompt(e.target.value)} placeholder="Enter business idea: e.g. White luxury sneaker Ah Rell Luxe Edition on gold pedestal..." className="flex-1 bg-black border border-white/10 rounded-xl px-4 py-3 text-sm outline-none focus:border-[#F5D76E]/50" />
-            <button onClick={()=>handleGenerate()} disabled={loading} className="bg-[#F5D76E] text-black px-8 py-3 rounded-xl font-black text-sm shadow-[0_0_20px_#F5D76E]/30 disabled:opacity-50">
-              {loading? 'COOKING...' : 'CREATE'}
+            <button onClick={()=>handleGenerate()} disabled={loading} className="bg-[#F5D76E] text-black px-8 py-3 rounded-xl font-black text-sm shadow-[0_0_20px_#F5D76E]/30 disabled:opacity-50 hover:scale-105 transition">
+              {loading? 'ZENITH COOKING...' : 'CREATE'}
             </button>
           </div>
-          <p className="text-[11px] mt-3 opacity-40">Current mode: <span className="text-[#F5D76E]">{activeTab}</span> • Speech/Music uses ElevenLabs • Image/Video uses Flux Free Unlimited • Endless Power</p>
+          <p className="text-[11px] mt-3 opacity-40">Current: <span className="text-[#F5D76E]">{activeTab}</span> • Audio = Zenith ElevenLabs • Image = Zenith Flux Ultra • 100% Branded Zenith AI Studio • No External Logo</p>
         </div>
 
-        {/* RESULT DISPLAY */}
         {(resultUrl || audioUrl) && (
-          <div className="mt-8 border border-[#F5D76E]/30 rounded-2xl p-5 bg-black animate-in">
+          <div className="mt-8 border border-[#F5D76E]/30 rounded-2xl p-5 bg-black">
             <div className="flex justify-between items-center mb-4">
-              <h3 className="text-[#F5D76E]">✅ {resultType} Generated by Zenith</h3>
-              <button onClick={()=>{setResultUrl(''); setAudioUrl('')}} className="text-xs opacity-50">Clear X</button>
+              <h3 className="text-[#F5D76E]">✅ {resultType} Generated by Zenith AI Studio</h3>
+              <button onClick={()=>{setResultUrl(''); setAudioUrl('')}} className="text-xs opacity-50 hover:opacity-100">Clear X</button>
             </div>
-
             {resultUrl && (
               <div className="rounded-xl overflow-hidden border border-white/10">
-                <img src={resultUrl} alt="Generated" className="w-full max-h-[600px] object-contain bg-zinc-900" />
-                <div className="p-4 flex justify-between bg-white/[0.03]">
-                  <span className="text-xs opacity-60">{prompt}</span>
-                  <a href={resultUrl} target="_blank" download className="bg-[#F5D76E] text-black px-4 py-1.5 rounded-full text-xs font-bold">Download HD</a>
+                <img src={resultUrl} alt="Generated" className="w-full max-h-[700px] object-contain bg-zinc-900" />
+                <div className="p-4 flex flex-col md:flex-row justify-between gap-3 bg-white/[0.03]">
+                  <span className="text-xs opacity-60 flex-1">{prompt}</span>
+                  <a href={resultUrl} target="_blank" download={`zenith-${resultType}.jpg`} className="bg-[#F5D76E] text-black px-4 py-1.5 rounded-full text-xs font-bold text-center">Download HD</a>
                 </div>
               </div>
             )}
-
             {audioUrl && (
               <div className="p-6 bg-white/[0.03] border border-white/10 rounded-xl">
-                <p className="text-sm mb-3 text-white/80">🔊 {resultType} Audio Ready — {prompt}</p>
+                <p className="text-sm mb-3 text-white/80">🔊 {resultType} Audio Ready — {prompt.slice(0,80)}</p>
                 <audio controls src={audioUrl} className="w-full" autoPlay />
                 <div className="mt-4 flex gap-3">
                   <a href={audioUrl} download={`zenith-${resultType}.mp3`} className="bg-[#F5D76E] text-black px-4 py-2 rounded-full text-xs font-bold">Download MP3</a>
-                  <span className="text-xs opacity-40 py-2">ElevenLabs • Luxury Voice</span>
+                  <span className="text-xs opacity-40 py-2">Zenith Audio Engine • by Prinz40</span>
                 </div>
               </div>
             )}
           </div>
         )}
 
-        {/* RECENT */}
         <div className="mt-6 border border-white/10 rounded-2xl p-4">
           <div className="flex justify-between"><h3 className="text-[#F5D76E]">Recent Generations • {recent.length}</h3><span className="text-sm opacity-60">View all →</span></div>
           <div className="grid md:grid-cols-3 gap-3 mt-4 text-xs">
             {recent.length===0? (
               <>
-                <div className="flex gap-3 items-center bg-white/[0.03] p-2 rounded-lg"><div className="w-16 h-10 bg-zinc-800 rounded"/> <div><p>No generations yet</p><p className="opacity-50">Generate first</p></div><div className="w-2 h-2 bg-yellow-400 rounded-full ml-auto"/></div>
+                <div className="flex gap-3 items-center bg-white/[0.03] p-2 rounded-lg"><div className="w-16 h-10 bg-zinc-800 rounded"/> <div><p>No generations yet</p><p className="opacity-50">Click template to start</p></div><div className="w-2 h-2 bg-yellow-400 rounded-full ml-auto"/></div>
                 <div className="flex gap-3 items-center bg-white/[0.03] p-2 rounded-lg"><div className="w-16 h-10 bg-zinc-800 rounded"/> <div><p>Voice Clone</p><p className="opacity-50">Ready to test</p></div></div>
                 <div className="flex gap-3 items-center bg-white/[0.03] p-2 rounded-lg"><div className="w-16 h-10 bg-zinc-800 rounded"/> <div><p>Avatar Shoot</p><p className="opacity-50">Ready to test</p></div></div>
               </>
             ) : recent.map((r,i)=>(
-              <div key={i} className="flex gap-3 items-center bg-white/[0.03] p-2 rounded-lg border border-[#F5D76E]/10">
-                <img src={r.url?.includes('.mp3')? 'https://cdn-icons-png.flaticon.com/512/138/138817.png' : r.url} className="w-16 h-10 object-cover rounded bg-zinc-800" />
-                <div className="flex-1 truncate"><p className="truncate">{r.type}</p><p className="opacity-50 truncate">{r.prompt.slice(0,20)}</p></div>
-                <div className="w-2 h-2 bg-green-400 rounded-full ml-auto"/>
+              <div key={i} onClick={()=>restoreRecent(r)} className="flex gap-3 items-center bg-white/[0.03] p-2 rounded-lg border border-[#F5D76E]/10 cursor-pointer hover:border-[#F5D76E]/40 hover:bg-white/[0.06] transition">
+                <img src={r.isAudio? 'https://cdn-icons-png.flaticon.com/512/138/138817.png' : r.url} className="w-16 h-10 object-cover rounded bg-zinc-800" alt="" />
+                <div className="flex-1 truncate"><p className="truncate">{r.type}</p><p className="opacity-50 truncate">{r.prompt.slice(0,22)}</p></div>
+                <div className="w-2 h-2 bg-green-400 rounded-full ml-auto animate-pulse"/>
               </div>
             ))}
           </div>
         </div>
 
-        <p className="text-center mt-8 text-[10px] tracking-[0.3em] opacity-20">ZENITH AI STUDIO • BY PRINZ40 • 2026 • ENDLESS ZENITH POINTS • REAL BRAIN ACTIVE</p>
+        <p className="text-center mt-8 text-[10px] tracking-[0.3em] opacity-20">ZENITH AI STUDIO • BY PRINZ40 • 2026 • ENDLESS ZENITH POINTS • STEALTH ENGINE ACTIVE</p>
       </div>
     </main>
   )
