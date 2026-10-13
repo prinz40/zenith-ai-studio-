@@ -7,46 +7,37 @@ export async function POST(req: NextRequest) {
     if (!prompt) return NextResponse.json({ error: 'No prompt' }, { status: 400 });
     const cleanType = (type || 'Image').toLowerCase();
 
-    // 1. AUDIO — Speech / Voice Clone / Music / Dubbing
-    if (cleanType.includes('speech') || cleanType.includes('voice') || cleanType.includes('dub') || cleanType.includes('music')) {
-      const ELEVEN_KEY = process.env.ELEVENLABS_API_KEY;
-      if (!ELEVEN_KEY) return NextResponse.json({ error: 'Add ELEVENLABS_API_KEY in Vercel' }, { status: 500 });
-      const voiceId = "21m00Tcm4TlvDq8ikWAM";
-      const r = await fetch(`https://api.elevenlabs.io/v1/text-to-speech/${voiceId}`, {
+    // AUDIO — needs ElevenLabs key only for these
+    if (cleanType.includes('speech') || cleanType.includes('voice') || cleanType.includes('music') || cleanType.includes('dub')) {
+      const KEY = process.env.ELEVENLABS_API_KEY;
+      if (!KEY) return NextResponse.json({ error: 'Please add ELEVENLABS_API_KEY in Vercel > Settings > Env Variables' }, { status: 500 });
+      const r = await fetch(`https://api.elevenlabs.io/v1/text-to-speech/21m00Tcm4TlvDq8ikWAM`, {
         method: 'POST',
-        headers: { 'xi-api-key': ELEVEN_KEY, 'Content-Type': 'application/json' },
-        body: JSON.stringify({ text: prompt, model_id: 'eleven_multilingual_v2', voice_settings: { stability: 0.5, similarity_boost: 0.8 } })
+        headers: { 'xi-api-key': KEY, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ text: prompt, model_id: 'eleven_multilingual_v2' })
       });
       if (!r.ok) {
         const t = await r.text();
-        return NextResponse.json({ error: 'Audio Engine Error: ' + t.slice(0,150) }, { status: 500 });
+        return NextResponse.json({ error: t.slice(0,200) }, { status: 500 });
       }
       const buf = await r.arrayBuffer();
-      return new NextResponse(buf, { headers: { 'Content-Type': 'audio/mpeg', 'X-Engine': 'Zenith-Audio-v1' } });
+      return new NextResponse(buf, { headers: { 'Content-Type': 'audio/mpeg' } });
     }
 
-    // 2. IMAGE — Product Shot / Model / Lifestyle / Image / Avatar / Video — STEALTH MODE
-    // Zenith fetches from engine server-side, returns as its own image — no external URL exposed
-    const enhancedPrompt = encodeURIComponent(`${prompt}, luxury studio, 8k, ultra detailed, photorealistic, cinematic lighting, ${type}`);
-    const seed = Math.floor(Math.random() * 999999);
-    const externalUrl = `https://image.pollinations.ai/p/${enhancedPrompt}?width=1024&height=1024&seed=${seed}&nologo=true&enhance=true&model=flux`;
+    // IMAGE — ALL other types — INSTANT, NO TIMEOUT, NO KEY NEEDED
+    const safePrompt = encodeURIComponent(`${prompt}, luxury, 8k, studio, photorealistic, cinematic, ${type}`);
+    const seed = Math.floor(Math.random() * 9999999);
+    const zenithImageUrl = `https://image.pollinations.ai/p/${safePrompt}?width=1024&height=1024&seed=${seed}&nologo=true&enhance=true&model=flux`;
 
-    const imageRes = await fetch(externalUrl, { cache: 'no-store' });
-    if (!imageRes.ok) return NextResponse.json({ error: 'Zenith Render Failed' }, { status: 500 });
-    
-    const imageBuffer = await imageRes.arrayBuffer();
-
-    // Return as Zenith's own image — 100% branded as Zenith AI Studio
-    return new NextResponse(imageBuffer, {
-      headers: {
-        'Content-Type': 'image/jpeg',
-        'Cache-Control': 'public, max-age=31536000',
-        'X-Engine': 'Zenith-Flux-Ultra-v1',
-        'X-Generated-By': 'Zenith AI Studio by Prinz40'
-      }
+    // Return instantly — frontend will convert to Zenith blob so no pollinations shows
+    return NextResponse.json({
+      url: zenithImageUrl,
+      type: type,
+      engine: 'Zenith-Flux-Ultra-v1',
+      brandedBy: 'Zenith AI Studio by Prinz40'
     });
 
   } catch (e: any) {
-    return NextResponse.json({ error: e.message || 'Failed' }, { status: 500 });
+    return NextResponse.json({ error: e.message }, { status: 500 });
   }
 }
