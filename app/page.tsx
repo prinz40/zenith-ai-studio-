@@ -93,7 +93,7 @@ export default function Page() {
       </div>
 
       {/* Model Navigation Deck */}
-      <div className="max-w-7xl mx-auto mt-4 border border-white/10 rounded-2xl bg-white/[0.03] p-3 flex gap-2 overflow-x-auto scrollbar-none">
+      <div className="max-w-7xl mx-auto mt-4 border border-white/10 rounded-2xl bg-white/[0.03] p-3 flex gap-2 overflow-x-auto">
         {tabs.map((t) => (
           <button 
             key={t} 
@@ -135,7 +135,7 @@ export default function Page() {
               value={prompt}
               onChange={(e) => setPrompt(e.target.value)}
               className="w-full bg-[#121115] border border-white/10 px-4 py-3 rounded-xl text-sm focus:outline-none focus:border-[#F5D76E] transition text-white"
-              placeholder="Describe your cinematic concept vision..."
+              placeholder="Describe your concept vision..."
             />
           </div>
           <button
@@ -191,7 +191,7 @@ export default function Page() {
             }} 
             className="rounded-2xl border border-white/10 hover:border-[#F5D76E]/40 bg-black overflow-hidden cursor-pointer p-3 transition"
           >
-            <img src="https://images.unsplash.com/photo-1541643600914-78b084683601?q=80" className="w-full h-48 object-cover rounded-xl" alt="template"/>
+            <img src="https://unsplash.com" className="w-full h-48 object-cover rounded-xl" alt="template"/>
             <div className="p-3 text-center"><h3 className="text-[#F5D76E] font-light">Product Shot Library</h3><p className="text-[11px] opacity-50">Click to execute production</p></div>
           </div>
 
@@ -217,4 +217,5 @@ export default function Page() {
             }} 
             className="rounded-2xl border border-white/10 hover:border-[#F5D76E]/40 bg-black overflow-hidden cursor-pointer p-3 transition"
           >
-    
+            <img src="https://unsplash.com" className="w-full h-48 object-cover rounded-xl" alt="template"/>
+                                  
